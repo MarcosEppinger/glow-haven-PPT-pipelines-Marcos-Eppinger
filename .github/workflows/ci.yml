@@ -1,0 +1,109 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Compile
+        run: mvn --batch-mode compile
+
+  lint:
+    name: Lint
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Run Checkstyle
+        run: mvn --batch-mode checkstyle:check
+
+  unit-tests:
+    name: Unit Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Run unit tests
+        run: mvn --batch-mode test -Dtest="**/*Test" -DfailIfNoTests=false
+
+  bdd-tests:
+    name: BDD Scenarios
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Run BDD scenarios
+        run: mvn --batch-mode test -Dtest="**/CucumberRunner" -DfailIfNoTests=false
+
+  package:
+    name: Package
+    needs: [ lint, unit-tests, bdd-tests ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Package application
+        run: mvn --batch-mode package -DskipTests
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: glow-haven-ppt
+          path: target/*.jar
+
+  notify-discord:
+    name: Notify Discord on Failure
+    needs: [ build, lint, unit-tests, bdd-tests, package ]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Send Discord notification
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          status: failure
+          title: "CI/CD Pipeline Failed"
+          description: |
+            One or more checks failed for **${{ github.repository }}**.
+            Branch: `${{ github.ref_name }}`
+            Triggered by: ${{ github.actor }}
+          url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
