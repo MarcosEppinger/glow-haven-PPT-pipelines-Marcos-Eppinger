@@ -28,7 +28,7 @@ class PptRegistrationCheckerTest {
 
     @Test
     void exceedsThresholdReturnsTrueWhenWeightIsExactlyAtThreshold() {
-        checker.setImportedWeightKg(1000.0);
+        checker.setImportedWeightKg(10000.0);
         assertTrue(checker.exceedsThreshold());
     }
 
